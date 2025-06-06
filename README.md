@@ -1,2 +1,2 @@
 # RegularNet
-Regular Network initial condition classification
+Regular network initial condition classification
