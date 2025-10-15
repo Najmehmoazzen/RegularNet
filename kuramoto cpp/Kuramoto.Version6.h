@@ -64,17 +64,14 @@ using namespace std;//                                                          
 //    k = W + ((coupling/(N * 1.0))*summation);                                       //@@@               all sum             ---
 //    return k;                                                                       //@@@                                   ---
 //}                                                                                   //@@@                                   ---
-double dydt(int specified, int N,double coupling,double W,const double* b,
-     const double* A, const double* Phase_old, double Phase_old_specified) 
-     
-     {
+double dydt(int N, const double* A, const double* Phase_old, double Phase_old_specified){
+    
     double ki = 0.0;         // Degree of node i
     double sum = 0.0;
 
     for (int j = 0; j < N; j++) {
-        double a_ij = A[j];  // A is assumed to be row 'i' of the adjacency matrix
-        ki += a_ij;
-        sum += a_ij * sin(Phase_old[j] - Phase_old[specified]);
+        ki += A[j];
+        sum += A[j] * sin(Phase_old[j] - Phase_old_specified);
     }
 
     if (ki == 0) return 0.0; // Avoid division by zero if the node is isolated
@@ -85,15 +82,14 @@ double dydt(int specified, int N,double coupling,double W,const double* b,
 //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                                   ---
 //@@@                                CCRK4                                           @@@@                                   ---
 //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                                   ---
-void Runge_Kutta_4(int N,double dt,double coupling,const double* W,const double* const* b,//                                ---
-                   const double* const* A,double* Phase_old,double* Phase_new)      //@@@                                   ---
+void Runge_Kutta_4(int N,double dt,const double* const* A,double* Phase_old,double* Phase_new)      //@@@                                   ---
 {                                                                                   //@@@                                   ---
     for (int i = 0; i < N; i++)                                                     //@@@                                   ---
         {                                                                           //@@@                                   ---   
-            double k1 = dydt(i,N,coupling,W[i],b[i],A[i],Phase_old,Phase_old[i]);   //@@@                                   ---   
-            double k2 = dydt(i,N,coupling,W[i],b[i],A[i],Phase_old,Phase_old[i]+k1*dt/2.0);//                               ---
-            double k3 = dydt(i,N,coupling,W[i],b[i],A[i],Phase_old,Phase_old[i]+k2*dt/2.0);//                               ---
-            double k4 = dydt(i,N,coupling,W[i],b[i],A[i],Phase_old,Phase_old[i]+k3*dt);//                                   ---
+            double k1 = dydt(N,A[i],Phase_old,Phase_old[i]);   //@@@                                   ---   
+            double k2 = dydt(N,A[i],Phase_old,Phase_old[i]+k1*dt/2.0);//                               ---
+            double k3 = dydt(N,A[i],Phase_old,Phase_old[i]+k2*dt/2.0);//                               ---
+            double k4 = dydt(N,A[i],Phase_old,Phase_old[i]+k3*dt);//                                   ---
             Phase_new[i] = Phase_old[i]+dt/6.0*(k1+2.0*k2+2.0*k3+k4);               //@@@                                   ---
         }                                                                           //@@@                                   ---
 }                                                                                   //@@@                                   ---
@@ -114,22 +110,20 @@ void Runge_Kutta_4(int N,double dt,double coupling,const double* W,const double*
 //                                                                \/                                                       $$$$
 //-----------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------------------------------------
+
+
 //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                                   ---
-//@@@                                Check scale -pi tp pi                           @@@@                                   ---
+//@@@                                Check scale 0 tp 2pi                           @@@@                                   ---
 //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                                   ---
-void check_scale(int N, double* phi)                                                //@@@                                   ---
-{                                                                                   //@@@                                   ---
-    for (int i = 0; i < N; i++)                                                     //@@@                                   ---
-    {                                                                               //@@@                                   ---
-        while(abs(phi[i])>Pi){                                                      //@@@                                   ---
-            if (phi[i]>0){                                                          //@@@                                   ---
-                phi[i]=phi[i]-2*Pi;                                                 //@@@                                   ---
-            }else if(phi[i]<0){                                                     //@@@                                   ---
-                phi[i]=phi[i]+2*Pi;                                                 //@@@                                   ---
-            }                                                                       //@@@                                   ---
-        }                                                                           //@@@                                   ---
-    }                                                                               //@@@                                   ---
-}                                                                                   //@@@                                   ---
+void check_scale(int N, double* phi)
+{
+    for (int i = 0; i < N; i++)
+    {
+        phi[i] = fmod(phi[i], 2 * Pi);
+        if (phi[i] < 0)
+            phi[i] += 2 * Pi;
+    }
+}
 //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                                   ---
 //@@@                                order_parameter                                 @@@@                                   ---
 //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                                   ---
@@ -143,74 +137,6 @@ double order_parameter(int N, double* phi)                                      
     }                                                                               //@@@                                   ---
     return sqrt(pow(rc, 2) + pow(rs, 2)) / (1.0 * N);                               //@@@                                   ---
 }                                                                                   //@@@                                   ---
-
-
-
-
-
-
-
-
-
-
-
-double TGroup_order_parameter(double* phi)                                          //@@@                                   ---
-{                                                                                   //@@@                                   ---
-    int First=0;
-    int End=1000;   
-    int size=End-First;
-
-    double rc = 0.0, rs = 0.0;                                                      //@@@                                   ---
-    for (int j = 0; j < 1000; j++)                                                     //@@@                                   ---
-    {                                                                               //@@@                                   ---
-        rc += cos(phi[j]);                                                          //@@@                                   ---
-        rs += sin(phi[j]);                                                          //@@@                                   ---
-    }                                                                               //@@@                                   ---
-    return sqrt(pow(rc, 2) + pow(rs, 2)) / (1.0 * size);                               //@@@                                   ---
-}                                                                                   //@@@                                   ---
-double LGroup_order_parameter(double* phi)                                          //@@@                                   ---
-{                                                                                   //@@@                                   ---
-    int First=0;
-    int End=277;
-    int size=End-First;
- 
-    double rc = 0.0, rs = 0.0;                                                      //@@@                                   ---
-    for (int j = 0; j < 277; j++)                                                     //@@@                                   ---
-    {                                                                               //@@@                                   ---
-        rc += cos(phi[j]);                                                          //@@@                                   ---
-        rs += sin(phi[j]);                                                          //@@@                                   ---
-    }                                                                               //@@@                                   ---
-    return sqrt(pow(rc, 2) + pow(rs, 2)) / (1.0 * size);                               //@@@                                   ---
-}                                                                                   //@@@                                   ---
-double MGroup_order_parameter( double* phi)                                          //@@@                                   ---
-{                                                                                   //@@@                                   ---
-    int First=277;
-    int End=723;  
-    int size=End-First;
-
-    double rc = 0.0, rs = 0.0;                                                      //@@@                                   ---
-    for (int j = 277; j < 723; j++)                                                     //@@@                                   ---
-    {                                                                               //@@@                                   ---
-        rc += cos(phi[j]);                                                          //@@@                                   ---
-        rs += sin(phi[j]);                                                          //@@@                                   ---
-    }                                                                               //@@@                                   ---
-    return sqrt(pow(rc, 2) + pow(rs, 2)) / (1.0 * size);                               //@@@                                   ---
-}                                                                                   //@@@                                   ---
-double RGroup_order_parameter( double* phi)                                          //@@@                                   ---
-{      
-    int First=723;
-    int End=1000;                                                                             //@@@                                   ---
-    int size=End-First;
-
-    double rc = 0.0, rs = 0.0;                                                      //@@@                                   ---
-    for (int j = First; j < End; j++)                                                     //@@@                                   ---
-    {                                                                               //@@@                                   ---
-        rc += cos(phi[j]);                                                          //@@@                                   ---
-        rs += sin(phi[j]);                                                          //@@@                                   ---
-    }                                                                               //@@@                                   ---
-    return sqrt(pow(rc, 2) + pow(rs, 2)) / (1.0 * size);                               //@@@                                   ---
-}                                                                                   //@@@                                   ---
-
 
 
 
@@ -240,6 +166,31 @@ double* for_loop_equal(double* Phase) {                                         
 //                                                               \  /                                                      $$$$
 //                                                                \/                                                       $$$$
 //-----------------------------------------------------------------------------------------------------------------------------
+//save last phase
+void save_lastphase(int sample,int Number_of_node,double* Phase){
+
+    ostringstream filename_stream;
+    filename_stream << "Save/Last_Phase/Last_Phase_S_" << sample << ".txt";
+    string filename = filename_stream.str();
+    ofstream Last_Phase_layer1(filename);
+
+    if (!Last_Phase_layer1) {
+        std::cerr << "ERROR: Cannot open file " << filename << " for writing.\n";
+    } 
+    else {
+        for (int i = 0; i < Number_of_node; i++) {
+            Last_Phase_layer1 << Phase[i] << endl;
+        }
+        Last_Phase_layer1.close();
+        cout << "Last phase of sample " << sample << " saved to " << filename << "\n";
+    }
+
+
+}
+
+
+
+
 //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                                   ---
 //@@@                               W=Naturalfrequency .txt                          @@@@ Read data from text               ---
 //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                                   ---
@@ -397,7 +348,7 @@ double** read_2D_A(string Filename, int Numberofnode)                           
     double** data_2D = new double* [Numberofnode];                                  //@@@                                   ---
     for (int i = 0; i < Numberofnode; i++)                                          //@@@                                   ---
         data_2D[i] = new double[Numberofnode];                                      //@@@                                   ---
-    ifstream file("./Example/A=Intralayeradjacencymatrix/" + Filename + ".txt");    //@@@                                   ---
+    ifstream file("./input_data/A=Intralayeradjacencymatrix/" + Filename + ".txt");    //@@@                                   ---
     if (!file)                                                                      //@@@                                   ---
     {                                                                               //@@@                                   ---
         cout << "WARNING!\tA=Intralayer adjacency matrix\t"<<Filename<<             //@@@                                   ---
